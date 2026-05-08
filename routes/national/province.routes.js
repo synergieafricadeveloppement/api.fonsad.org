@@ -1,3 +1,5 @@
+// backend/routes/ntional/province.routes.js 
+
 const express = require('express');
 const router = express.Router();
 
@@ -13,7 +15,6 @@ const departementRoutes = require('./departement.routes');
 const uploadResponsablePhoto = require('../../middlewares/uploadResponsablePhoto');
 const provinceService = require('../../services/province.service');
 
-// DEBUG public : à garder temporairement pour vérifier la gouvernance
 router.get('/debug-governance', async (req, res, next) => {
   try {
     const settings = await provinceService.getOrCreateSettings();
@@ -38,21 +39,17 @@ router.get('/debug-governance', async (req, res, next) => {
   }
 });
 
-// Liste + création
 router
   .route('/')
   .get(getProvinces)
   .post(uploadResponsablePhoto, createProvince);
 
-// Export spécifique
 router.get('/:provinceId/export', exportProvinceData);
 
-// Détail province
 router
   .route('/:provinceId')
   .get(getProvinceDetail);
 
-// Sous-routes liées à une province
 router.use('/:provinceId/cellules', celluleRoutes);
 router.use('/:provinceId/cellules/:celluleId/departements', departementRoutes);
 

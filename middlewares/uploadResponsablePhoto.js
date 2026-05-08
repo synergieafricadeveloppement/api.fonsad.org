@@ -1,14 +1,41 @@
-// backend/middlewares/uploadResponsablePhoto.js
-
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
 const AppError = require('../utils/AppError');
 
-const uploadDir = path.join(process.cwd(), 'uploads', 'responsables');
+// Dossier uploads/responsables à la racine backend
+const uploadDir = path.join(__dirname, '..', 'uploads', 'responsables');
 
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const ALLOWED_MIME_TYPES = [
+  'image/png',
+  'image/jpeg',
+  'image/jpg',
+  'image/webp',
+  'image/gif',
+  'image/bmp',
+];
+
+const ALLOWED_EXTENSIONS = [
+  '.png',
+  '.jpeg',
+  '.jpg',
+  '.webp',
+  '.gif',
+  '.bmp',
+];
+
+function slugifyFileName(value = '') {
+  return String(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9-_]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .toLowerCase();
 }
 
 const storage = multer.diskStorage({
@@ -16,25 +43,47 @@ const storage = multer.diskStorage({
     cb(null, uploadDir);
   },
   filename: (_req, file, cb) => {
-    const rawExt = path.extname(file.originalname || '').toLowerCase();
-    const ext = rawExt || '.jpg';
-    const safeBase = `responsable-${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-    cb(null, `${safeBase}${ext}`);
+    const originalExt = path.extname(file.originalname || '').toLowerCase();
+    const safeExt = ALLOWED_EXTENSIONS.includes(originalExt)
+      ? originalExt
+      : '.jpg';
+
+    const baseName = path.basename(
+      file.originalname || 'responsable',
+      originalExt
+    );
+    const safeBaseName = slugifyFileName(baseName) || 'responsable';
+    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+
+    cb(null, `${safeBaseName}-${uniqueSuffix}${safeExt}`);
   },
 });
 
-const fileFilter = (_req, file, cb) => {
-  if (!file.mimetype || !file.mimetype.startsWith('image/')) {
-    return cb(new AppError('Seules les images sont autorisées pour la photo.', 400));
+function fileFilter(_req, file, cb) {
+  const mimetype = String(file.mimetype || '').toLowerCase();
+  const ext = path.extname(file.originalname || '').toLowerCase();
+
+  const isMimeAllowed = ALLOWED_MIME_TYPES.includes(mimetype);
+  const isExtAllowed = ALLOWED_EXTENSIONS.includes(ext);
+
+  if (isMimeAllowed || isExtAllowed) {
+    return cb(null, true);
   }
-  cb(null, true);
-};
+
+  return cb(
+    new AppError(
+      'Format de fichier non supporté. Formats autorisés: png, jpeg, jpg, webp, gif, bmp.',
+      400
+    )
+  );
+}
 
 const upload = multer({
   storage,
   fileFilter,
   limits: {
-    fileSize: 5 * 1024 * 1024,
+    fileSize: 8 * 1024 * 1024, // 8MB
+    files: 1,
   },
 });
 
@@ -42,14 +91,16 @@ const uploadResponsablePhoto = (req, res, next) => {
   const handler = upload.single('photo');
 
   handler(req, res, (err) => {
-    if (!err) {
-      return next();
-    }
+    if (!err) return next();
 
+    // Erreurs Multer
     if (err instanceof multer.MulterError) {
       if (err.code === 'LIMIT_FILE_SIZE') {
         return next(
-          new AppError('La photo du responsable dépasse la taille maximale de 5 MB.', 400)
+          new AppError(
+            'La photo du responsable dépasse la taille maximale de 8 MB.',
+            400
+          )
         );
       }
 
@@ -63,14 +114,21 @@ const uploadResponsablePhoto = (req, res, next) => {
       }
 
       return next(
-        new AppError(err.message || 'Erreur lors du téléversement de la photo.', 400)
+        new AppError(
+          err.message || 'Erreur lors du téléversement de la photo.',
+          400
+        )
       );
     }
 
+    // Autre erreur
     return next(
       err instanceof AppError
         ? err
-        : new AppError(err.message || 'Erreur lors du téléversement de la photo.', 400)
+        : new AppError(
+            err.message || 'Erreur lors du téléversement de la photo.',
+            400
+          )
     );
   });
 };

@@ -1,165 +1,89 @@
-// server.js
-
 /**
  * =========================================================
  * FONSAD BACKEND SERVER
  * =========================================================
- * Ce fichier est l’unique point d’entrée du backend.
- *
- * Il gère :
- * - le chargement des variables d’environnement
- * - la connexion à MongoDB
- * - l’initialisation d’Express
- * - les middlewares globaux
- * - le montage des routes
- * - la gestion des routes introuvables
- * - la gestion centralisée des erreurs
- * - le démarrage du serveur HTTP
- * =========================================================
  */
 
-/**
- * ---------------------------------------------------------
- * IMPORTS PACKAGES
- * ---------------------------------------------------------
- */
-
-// Framework HTTP principal.
 const express = require('express');
-
-// Middleware pour gérer CORS.
 const cors = require('cors');
-
-// Chargement des variables d’environnement.
 const dotenv = require('dotenv');
+const path = require('path');
 
-/**
- * ---------------------------------------------------------
- * IMPORTS INTERNES
- * ---------------------------------------------------------
- */
-
-// Fonction de connexion MongoDB.
 const connectDB = require('./config/db');
 
-// Routes d’authentification.
 const authRoutes = require('./routes/authRoutes');
-
-// Routes des adhésions / memberships.
 const membershipRoutes = require('./routes/membershipRoutes');
-
-// Routes des settings nationaux.
 const nationalSettingsRoutes = require('./routes/national/nationalSettings.routes');
-
-// Routes dashboard national.
 const nationalDashboardRoutes = require('./routes/national/nationalDashboard.routes');
 const nationalProvinceRoutes = require('./routes/national/province.routes');
-
 const nationalDepartementGlobalRoutes = require('./routes/national/departement.global.routes');
+const nationalCelluleGlobalRoutes = require('./routes/national/cellule.global.routes');
+const nationalMembreGlobalRoutes = require('./routes/national/membre.global.routes');
+const nationalAdhesionGlobalRoutes = require('./routes/national/adhesion.global.routes');
+const nationalFinanceGlobalRoutes = require('./routes/national/finance.global.routes');
 
-// Middleware global de gestion des erreurs.
 const errorHandler = require('./middlewares/errorHandler');
 
-/**
- * ---------------------------------------------------------
- * CHARGEMENT DU FICHIER .env
- * ---------------------------------------------------------
- */
-
-// On charge les variables d’environnement avant de les utiliser.
 dotenv.config();
 
-/**
- * ---------------------------------------------------------
- * CONSTANTES GLOBALES
- * ---------------------------------------------------------
- */
-
-// Port applicatif.
 const PORT = process.env.PORT || 5000;
-
-// Environnement courant.
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
-/**
- * ---------------------------------------------------------
- * INITIALISATION EXPRESS
- * ---------------------------------------------------------
- */
-
-// Création de l’application Express.
 const app = express();
 
 /**
- * ---------------------------------------------------------
- * CONFIGURATION CORS
- * ---------------------------------------------------------
- * On prévoit une configuration simple mais extensible.
- * - Si CORS_ORIGIN n’est pas défini, on autorise tout.
- * - Si CORS_ORIGIN est défini, on accepte une liste séparée par virgules.
- * - Les requêtes sans origin (Postman, curl, app mobile) sont acceptées.
+ * CORS
  */
-
 const corsOptions = {
   origin: function (origin, callback) {
-    // Autorise les appels sans origin explicite.
     if (!origin) {
       return callback(null, true);
     }
 
-    // Si aucune whitelist n’est définie, on autorise tout.
     if (!process.env.CORS_ORIGIN) {
       return callback(null, true);
     }
 
-    // On lit les origins autorisées depuis l’env.
     const allowedOrigins = process.env.CORS_ORIGIN.split(',').map((item) =>
       item.trim()
     );
 
-    // Si l’origin est dans la whitelist, on autorise.
     if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
 
-    // Sinon on bloque.
     return callback(new Error('Origine non autorisée par CORS.'));
   },
-
-  // Autorise les cookies/headers d’auth si besoin futur.
   credentials: true,
 };
 
-/**
- * ---------------------------------------------------------
- * CONNEXION À LA BASE DE DONNÉES
- * ---------------------------------------------------------
- * On lance la connexion dès le démarrage.
- * Si connectDB échoue et throw, le catch du bootstrap arrêtera l’app.
- */
-
-/**
- * ---------------------------------------------------------
- * MIDDLEWARES GLOBAUX
- * ---------------------------------------------------------
- */
-
-// Active CORS.
 app.use(cors(corsOptions));
 
-// Parse du JSON avec limite.
-app.use(express.json({ limit: '2mb' }));
-
-// Parse des formulaires URL-encoded.
-app.use(express.urlencoded({ extended: true, limit: '2mb' }));
+/**
+ * Parsers
+ */
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 /**
- * ---------------------------------------------------------
- * ROUTES TECHNIQUES / HEALTHCHECK
- * ---------------------------------------------------------
+ * Fichiers statiques uploads
+ * /uploads/responsables/xxx.ext
+ */
+app.use(
+  '/uploads',
+  express.static(path.join(__dirname, 'uploads'), {
+    fallthrough: false,
+    maxAge: '7d',
+    etag: true,
+    lastModified: true,
+  })
+);
+
+/**
+ * Routes techniques
  */
 
-// Route racine.
+// Root
 app.get('/', (req, res) => {
   return res.status(200).json({
     success: true,
@@ -168,7 +92,7 @@ app.get('/', (req, res) => {
   });
 });
 
-// Route de santé utile pour monitoring et diagnostic.
+// Healthcheck
 app.get('/api/health', (req, res) => {
   return res.status(200).json({
     success: true,
@@ -178,33 +102,33 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Debug accès uploads
+app.get('/debug/uploads-exists', (req, res) => {
+  const base =
+    process.env.PUBLIC_BASE_URL || `http://localhost:${PORT}`;
+  return res.status(200).json({
+    success: true,
+    uploadsUrlExample: `${base}/uploads/responsables/example.jpg`,
+  });
+});
+
 /**
- * ---------------------------------------------------------
- * ROUTES MÉTIERS
- * ---------------------------------------------------------
+ * Routes métiers
  */
-
-// Auth.
 app.use('/api/auth', authRoutes);
-
-// Memberships / adhésions.
 app.use('/api/memberships', membershipRoutes);
-
-// Settings nationaux.
 app.use('/api/national/settings', nationalSettingsRoutes);
 app.use('/api/national/dashboard', nationalDashboardRoutes);
 app.use('/api/national/provinces', nationalProvinceRoutes);
 app.use('/api/national/departements', nationalDepartementGlobalRoutes);
-
-
+app.use('/api/national/cellules', nationalCelluleGlobalRoutes);
+app.use('/api/national/membres', nationalMembreGlobalRoutes);
+app.use('/api/national/adhesions', nationalAdhesionGlobalRoutes);
+app.use('/api/national/finances', nationalFinanceGlobalRoutes);
 
 /**
- * ---------------------------------------------------------
- * 404 - ROUTE INTROUVABLE
- * ---------------------------------------------------------
- * Ce middleware doit venir après toutes les routes applicatives.
+ * 404
  */
-
 app.use((req, res) => {
   return res.status(404).json({
     success: false,
@@ -215,35 +139,39 @@ app.use((req, res) => {
 });
 
 /**
- * ---------------------------------------------------------
- * GESTION GLOBALE DES ERREURS
- * ---------------------------------------------------------
- * Toujours à la fin, après routes + 404.
+ * Gestion globale des erreurs
+ *
+ * On laisse ton errorHandler existant gérer AppError & co,
+ * et on ajoute la gestion spécifique Multer si besoin.
  */
+app.use((err, req, res, next) => {
+  // Multer
+  if (err && err.name === 'MulterError') {
+    return res.status(400).json({
+      success: false,
+      message: err.message || 'Erreur upload fichier.',
+    });
+  }
 
-app.use(errorHandler);
+  // Délégué à ton middleware global
+  return errorHandler(err, req, res, next);
+});
 
 /**
- * ---------------------------------------------------------
- * BOOTSTRAP SERVEUR
- * ---------------------------------------------------------
- * On démarre l’application dans une fonction async pour :
- * - attendre proprement MongoDB
- * - arrêter le process si la connexion échoue
- * - centraliser les logs de démarrage
+ * Bootstrap serveur
  */
-
 async function startServer() {
   try {
-    // Connexion base de données.
     await connectDB();
 
-    // Lancement HTTP.
     app.listen(PORT, '0.0.0.0', () => {
+      const baseUrl =
+        process.env.PUBLIC_BASE_URL || `http://localhost:${PORT}`;
+
       console.log('==================================================');
       console.log(`FONSAD backend running on port ${PORT}`);
       console.log(`Environment: ${NODE_ENV}`);
-      console.log(`Base URL: http://0.0.0.0:${PORT}`);
+      console.log(`Public Base URL: ${baseUrl}`);
       console.log('==================================================');
     });
   } catch (error) {
@@ -251,11 +179,8 @@ async function startServer() {
     console.error('Erreur au démarrage du backend FONSAD');
     console.error(error);
     console.error('==================================================');
-
-    // On coupe le process si la base ne démarre pas correctement.
     process.exit(1);
   }
 }
 
-// Exécution du bootstrap.
 startServer();

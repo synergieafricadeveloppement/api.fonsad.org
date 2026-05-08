@@ -1,3 +1,5 @@
+// backend/models/PendingRegistration.js
+
 const mongoose = require('mongoose');
 
 const pendingRegistrationSchema = new mongoose.Schema(

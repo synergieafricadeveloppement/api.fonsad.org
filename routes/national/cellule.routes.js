@@ -4,19 +4,17 @@ const express = require('express');
 const router = express.Router({ mergeParams: true });
 
 const {
+  debugCellulesDiagnostics,
   getCellulesByProvince,
   createCellule,
   getCelluleDetail,
   updateCellule,
   patchCellule,
   deleteCellule,
-  debugCellulesDiagnostics,
 } = require('../../controllers/national/cellule.controller');
 
 const uploadResponsablePhoto = require('../../middlewares/uploadResponsablePhoto');
 
-// Route debug temporaire sans token
-// Important : elle doit être déclarée avant '/:celluleId'
 router.get('/debug/diagnostics', debugCellulesDiagnostics);
 
 router

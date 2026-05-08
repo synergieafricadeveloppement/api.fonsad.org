@@ -1,3 +1,5 @@
+// backend/models/User.js
+
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
@@ -41,7 +43,15 @@ const userSchema = new mongoose.Schema(
     },
     department: {
       type: String,
-      enum: ['rh', 'finances', 'formations', 'adhesion', 'coordination', 'secretariat', 'autre'],
+      enum: [
+        'rh',
+        'finances',
+        'formations',
+        'adhesion',
+        'coordination',
+        'secretariat',
+        'autre',
+      ],
       default: 'adhesion',
     },
     role: {
@@ -60,10 +70,17 @@ const userSchema = new mongoose.Schema(
       ],
       default: 'adherent',
     },
+    memberType: {
+      type: String,
+      enum: ['standard', 'honneur'],
+      default: 'standard',
+      index: true,
+    },
     provinceName: {
       type: String,
       trim: true,
       default: '',
+      index: true,
     },
     celluleName: {
       type: String,
@@ -77,6 +94,7 @@ const userSchema = new mongoose.Schema(
     isActive: {
       type: Boolean,
       default: true,
+      index: true,
     },
   },
   { timestamps: true }

@@ -6,26 +6,31 @@ const responsableSchema = new mongoose.Schema(
   {
     fullName: {
       type: String,
-      required: true,
+      required: false,
       trim: true,
+      default: '',
     },
     fonction: {
       type: String,
-      required: true,
+      required: false,
       trim: true,
+      default: 'Responsable cellule',
     },
     phone: {
       type: String,
       trim: true,
+      default: '',
     },
     email: {
       type: String,
       trim: true,
       lowercase: true,
+      default: '',
     },
     photoUrl: {
       type: String,
       trim: true,
+      default: '',
     },
   },
   {
@@ -35,6 +40,7 @@ const responsableSchema = new mongoose.Schema(
 
 const celluleSchema = new mongoose.Schema(
   {
+    // Référence vers la province (clé étrangère)
     provinceId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Province',
@@ -52,6 +58,8 @@ const celluleSchema = new mongoose.Schema(
       type: String,
       trim: true,
       uppercase: true,
+      // tu peux mettre required: true si tu veux forcer au backend
+      // required: true,
     },
 
     type: {
@@ -71,37 +79,44 @@ const celluleSchema = new mongoose.Schema(
     commune: {
       type: String,
       trim: true,
+      default: '',
     },
 
     zone: {
       type: String,
       trim: true,
+      default: '',
     },
 
     address: {
       type: String,
       trim: true,
+      default: '',
     },
 
     phone: {
       type: String,
       trim: true,
+      default: '',
     },
 
     email: {
       type: String,
       trim: true,
       lowercase: true,
+      default: '',
     },
 
     description: {
       type: String,
       trim: true,
+      default: '',
     },
 
     responsable: {
       type: responsableSchema,
       required: false,
+      default: () => ({}),
     },
 
     departementsCount: {
@@ -143,11 +158,13 @@ const celluleSchema = new mongoose.Schema(
     createdBy: {
       type: String,
       trim: true,
+      default: '',
     },
 
     updatedBy: {
       type: String,
       trim: true,
+      default: '',
     },
   },
   {

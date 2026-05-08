@@ -1,5 +1,9 @@
+// backend/services/provinces.services.js
+
 const mongoose = require('mongoose');
+
 const Province = require('../models/national/Province');
+const Cellule = require('../models/national/Cellule');
 const Departement = require('../models/national/Departement');
 const NationalSettings = require('../models/national/NationalSettings');
 const AppError = require('../utils/AppError');
@@ -9,7 +13,8 @@ const DEFAULT_DEPARTEMENTS = [
     name: 'Département d’Administration',
     code: 'ADMIN',
     type: 'ADMINISTRATION',
-    description: 'Administration générale, gestion interne, finances et secrétariat.',
+    description:
+      'Administration générale, gestion interne, finances et secrétariat.',
   },
   {
     name: 'Département de Communication',
@@ -33,7 +38,8 @@ const DEFAULT_DEPARTEMENTS = [
     name: 'Département de l’Éducation',
     code: 'EDUC',
     type: 'EDUCATION',
-    description: 'Éducation, pédagogie, accompagnement et formation civique.',
+    description:
+      'Éducation, pédagogie, accompagnement et formation civique.',
   },
   {
     name: 'Département de Psychologie et Social',
@@ -93,6 +99,7 @@ function buildResponsablePayload(raw) {
       normalizeString(raw.fonction || raw.role) || 'Coordinateur provincial',
     phone: normalizeString(raw.phone),
     email: normalizeString(raw.email, { lowercase: true }),
+    sexe: normalizeString(raw.sexe, { uppercase: true }), // M, F, AUTRE
     photoUrl: normalizeString(raw.photoUrl),
   };
 
@@ -127,7 +134,6 @@ function buildProvincePayload(payload, userId) {
   return data;
 }
 
-// Récupère les settings nationaux et garantit qu’un document complet existe.
 async function getOrCreateSettings() {
   let settings = await NationalSettings.findOne({ scope: 'national' });
 
@@ -143,7 +149,6 @@ async function getOrCreateSettings() {
   return settings;
 }
 
-// Vérifie si la création est autorisée.
 async function assertCanCreateProvince() {
   const settings = await getOrCreateSettings();
 
@@ -162,14 +167,48 @@ async function assertCanCreateProvince() {
   return settings;
 }
 
-// Liste des provinces + gouvernance.
+/**
+ * Liste des provinces + gouvernance
+ * - cellulesCount = nombre de cellules rattachées à la province
+ * - membresCount  = somme des cellules.membresCount pour cette province
+ */
 async function listProvincesWithGovernance() {
   const settings = await getOrCreateSettings();
 
-  const provinces = await Province.find({})
-    .sort({ name: 1 })
-    .lean()
-    .exec();
+  const provinces = await Province.aggregate([
+    {
+      $lookup: {
+        from: Cellule.collection.name, // 'cellules'
+        localField: '_id',
+        foreignField: 'provinceId',
+        as: 'cellules',
+      },
+    },
+    {
+      $addFields: {
+        cellulesCount: { $size: '$cellules' },
+        membresCount: {
+          $sum: {
+            $map: {
+              input: '$cellules',
+              as: 'cel',
+              in: {
+                $ifNull: ['$$cel.membresCount', 0],
+              },
+            },
+          },
+        },
+      },
+    },
+    {
+      $project: {
+        cellules: 0,
+      },
+    },
+    {
+      $sort: { name: 1 },
+    },
+  ]).exec(); 
 
   const governance = {
     allowProvinceCreation:
@@ -181,9 +220,10 @@ async function listProvincesWithGovernance() {
   return { provinces, governance };
 }
 
-// Récupère une province par ID.
 async function getProvinceById(provinceId) {
-  if (!isStrictObjectId(provinceId)) {
+  console.log('[province.service.getProvinceById] provinceId reçu =', provinceId);
+
+  if (!provinceId || !mongoose.isValidObjectId(provinceId)) {
     throw new AppError('Identifiant de province invalide.', 400);
   }
 
@@ -194,6 +234,38 @@ async function getProvinceById(provinceId) {
   }
 
   return province;
+}
+
+/**
+ * Variante pour le détail: recalcule cellulesCount et membresCount
+ * à partir des Cellule.membresCount.
+ */
+async function getProvinceByIdWithStats(provinceId) {
+  if (!provinceId || !mongoose.isValidObjectId(provinceId)) {
+    throw new AppError('Identifiant de province invalide.', 400);
+  }
+
+  const base = await Province.findById(provinceId).lean().exec();
+  if (!base) {
+    throw new AppError('Province introuvable.', 404);
+  }
+
+  const cellules = await Cellule.find({ provinceId })
+    .select('membresCount')
+    .lean()
+    .exec();
+
+  const cellulesCount = cellules.length;
+  const membresCount = cellules.reduce(
+    (acc, cel) => acc + Number(cel.membresCount || 0),
+    0
+  );
+
+  return {
+    ...base,
+    cellulesCount,
+    membresCount,
+  };
 }
 
 async function createDefaultDepartementsForProvince({
@@ -262,11 +334,9 @@ async function createDefaultDepartementsForProvince({
   };
 }
 
-// Crée une nouvelle province.
 async function createProvince(payload, options = {}) {
   const { userId } = options;
 
-  // Safety backend : on vérifie à chaque création
   await assertCanCreateProvince();
 
   const provinceData = buildProvincePayload(payload, userId);
@@ -303,7 +373,7 @@ async function createProvince(payload, options = {}) {
       reason:
         bootstrapResult.reason ||
         (shouldGenerateDefaultDepartements &&
-        bootstrapResult.createdDepartements.length === 0
+          bootstrapResult.createdDepartements.length === 0
           ? 'Les départements n’ont pas été créés.'
           : null),
     },
@@ -313,6 +383,7 @@ async function createProvince(payload, options = {}) {
 module.exports = {
   listProvincesWithGovernance,
   getProvinceById,
+  getProvinceByIdWithStats,
   createProvince,
   getOrCreateSettings,
   assertCanCreateProvince,

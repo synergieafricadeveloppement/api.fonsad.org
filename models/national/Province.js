@@ -1,5 +1,6 @@
 // backend/models/national/Province.js
 
+
 const mongoose = require('mongoose');
 
 // Sous-doc pour le responsable principal de la province.
@@ -23,6 +24,12 @@ const responsableSchema = new mongoose.Schema(
       type: String,
       trim: true,
       lowercase: true,
+    },
+    sexe: {
+      type: String,
+      trim: true,
+      enum: ['M', 'F', 'AUTRE', ''],
+      default: '',
     },
     photoUrl: {
       type: String,

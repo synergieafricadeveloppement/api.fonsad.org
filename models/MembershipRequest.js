@@ -1,3 +1,5 @@
+// backend/models/MembershipRequest.js
+
 const mongoose = require('mongoose');
 
 const membershipRequestSchema = new mongoose.Schema(
